@@ -113,7 +113,7 @@ def gerar_historia(tema, estilo, comprimento):
     
     return historia
 
-# Função aprimorada para gerar imagem
+#AQUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII Função aprimorada para gerar imagem
 def gerar_imagem(descricao, estilo):
     # Definir dimensões e cores
     largura, altura = 1024, 1024
@@ -137,12 +137,8 @@ def gerar_imagem(descricao, estilo):
     import PIL.ImageDraw as ImageDraw
     import PIL.ImageFont as ImageFont
     
-    try:
-        # Tentar carregar uma fonte
-        fonte = ImageFont.truetype("Arial.ttf", 40)
-    except:
-        # Se não encontrar, usar fonte padrão
-        fonte = ImageFont.load_default()
+    # Sempre usar fonte padrão para evitar problemas
+    fonte = ImageFont.load_default()
         
     draw = ImageDraw.Draw(img)
     
@@ -174,14 +170,6 @@ def gerar_imagem(descricao, estilo):
         
         # Faróis (para rua escura)
         draw.ellipse([(carro_x+180, carro_y+20), (carro_x+200, carro_y+40)], fill=(255, 255, 200))
-        
-        # Brilho dos faróis
-        for i in range(30):
-            alpha = 128-i*4 if 128-i*4 > 0 else 0
-            draw.ellipse([
-                (carro_x+200, carro_y+30-i), 
-                (carro_x+300+i*10, carro_y+30+i)
-            ], fill=(255, 255, 200, alpha), outline=None)
         
         # Céu noturno (se for noite/escuro)
         if "escura" in descricao_lower or "noite" in descricao_lower:
@@ -232,17 +220,12 @@ def gerar_imagem(descricao, estilo):
             # Copa
             draw.ellipse([(tree_x-50, tree_y-80), (tree_x+50, tree_y+20)], fill=(20, 120, 30))
     
-    # Título pequeno e discreto
-    titulo = "Imagem gerada: " + descricao[:30] + "..."
-    titulo_fonte = ImageFont.truetype("Arial.ttf", 20) if hasattr(ImageFont, "truetype") else ImageFont.load_default()
-    
-    # Adicionar informações sobre estilo no canto
+    # Adicionar informações sobre estilo no canto - usando fonte padrão
     estilo_text = f"Estilo: {estilo}"
-    estilo_largura = draw.textlength(estilo_text, font=titulo_fonte) if hasattr(draw, "textlength") else 0
     draw.text(
         (20, altura - 50),
         estilo_text,
-        font=titulo_fonte,
+        font=fonte,
         fill=(200, 200, 200)
     )
     
@@ -269,7 +252,7 @@ def gerar_imagem(descricao, estilo):
     
     return temp_img.name, img
 
-# Função ULTRA-SIMPLIFICADA para criar um vídeo sem dependências externas
+# AQUIIIIIIIIIIIIIIIIIII Função ULTRA-SIMPLIFICADA para criar um vídeo sem dependências externas
 def criar_video(historia, imagem_path, titulo):
     try:
         # Criar um diretório temporário
