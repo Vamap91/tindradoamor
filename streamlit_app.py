@@ -64,7 +64,7 @@ def gerar_historia(tema, estilo, comprimento):
         api_key = get_api_key("OPENAI_API_KEY")
         
         if api_key:
-            # Importar apenas quando precisar usar a API
+            # Inicialização simples do cliente OpenAI sem argumentos extras
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
             
@@ -315,7 +315,7 @@ def gerar_imagem_offline(descricao, estilo):
     
     return temp_img.name, img
 
-# Função para criar vídeo
+# Função simplificada para criar vídeo sem depender do ImageMagick
 def criar_video(historia, imagem_path, titulo):
     try:
         # Definir diretório temporário para arquivos
@@ -323,69 +323,43 @@ def criar_video(historia, imagem_path, titulo):
         
         # Carregar imagem
         img = Image.open(imagem_path)
-        
-        # Converter para array numpy
         img_array = np.array(img)
         
-        # Dividir história em segmentos (limitar a 5 parágrafos)
-        paragrafos = historia.split('\n\n')
-        if len(paragrafos) > 5:
-            paragrafos = paragrafos[:5]
+        # Criar um clipe básico apenas com a imagem
+        img_clip = ImageSequenceClip([img_array], durations=[10])
         
-        # Criar slides - um para cada parágrafo
-        slides = []
+        # Criar texto para o título (usando método simples)
+        txt_clip = TextClip(
+            txt=titulo,
+            size=(img.width - 100, None),
+            color='white',
+            bg_color='rgba(0,0,0,0.5)',
+            fontsize=60,
+            method='label'  # Método mais simples que não requer ImageMagick
+        ).set_position('center').set_duration(10)
         
-        # Iniciar com slide de título
-        title_clip = TextClip(
-            titulo, 
-            fontsize=70, 
-            color='white', 
-            bg_color='rgba(0,0,0,0.7)',
-            size=(img.width, None),
-            method='caption',
-            font='Arial-Bold'
-        ).set_position('center').set_duration(3)
-        
-        title_bg = ImageSequenceClip([img_array], durations=[3])
-        intro_clip = CompositeVideoClip([title_bg, title_clip])
-        slides.append(intro_clip)
-        
-        # Adicionar um slide para cada parágrafo
-        for paragrafo in paragrafos:
-            if paragrafo.strip():
-                # Limitar o tamanho do texto
-                texto_curto = paragrafo[:150] + "..." if len(paragrafo) > 150 else paragrafo
-                
-                # Texto para o slide
-                txt_clip = TextClip(
-                    texto_curto, 
-                    fontsize=30, 
-                    color='white',
-                    bg_color='rgba(0,0,0,0.5)',
-                    method='caption',
-                    size=(img.width, None)
-                ).set_position(('center', 'bottom')).set_duration(5)
-                
-                # Fundo do slide
-                bg_clip = ImageSequenceClip([img_array], durations=[5])
-                
-                # Combinar texto e fundo
-                slide = CompositeVideoClip([bg_clip, txt_clip])
-                slides.append(slide)
-        
-        # Juntar todos os slides
-        video = ImageSequenceClip.concatenate_videoclips(slides)
+        # Combinar imagem e texto
+        video = CompositeVideoClip([img_clip, txt_clip])
         
         # Definir caminho para o vídeo final
         output_path = os.path.join(temp_dir, "video_final.mp4")
         
-        # Exportar vídeo
+        # Exportar vídeo sem áudio
         video.write_videofile(output_path, fps=24, codec='libx264', audio=False)
         
         return output_path
     except Exception as e:
         st.error(f"Erro ao criar vídeo: {str(e)}")
-        return None
+        
+        # Se não conseguir criar o vídeo, pelo menos salvar a história como texto
+        try:
+            output_path = os.path.join(temp_dir, "historia.txt")
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {titulo}\n\n{historia}")
+            st.warning("Não foi possível criar o vídeo. A história foi salva como texto.")
+            return output_path
+        except:
+            return None
 
 # Interface do usuário
 with st.form("gerador_form"):
@@ -435,17 +409,22 @@ if gerar_button:
                     with st.spinner('Criando vídeo...'):
                         video_path = criar_video(historia, imagem_path, titulo_video)
                         
-                        if video_path:
+                        if video_path and video_path.endswith('.mp4'):
                             st.success("Vídeo criado com sucesso!")
                             st.markdown("### Vídeo Gerado")
                             st.video(video_path)
-                            
-                            st.markdown("""
-                            <div class='success-message'>
-                                <h3>🎉 Processo Completo!</h3>
-                                <p>Todos os conteúdos foram gerados com sucesso!</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                        elif video_path:
+                            st.warning("Vídeo não pôde ser criado, mas a história foi salva.")
+                            with open(video_path, 'r', encoding='utf-8') as f:
+                                conteudo = f.read()
+                            st.download_button("Baixar História", conteudo, "historia.txt")
+                        
+                        st.markdown("""
+                        <div class='success-message'>
+                            <h3>🎉 Processo Completo!</h3>
+                            <p>Todos os conteúdos foram gerados com sucesso!</p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 # Informações adicionais
 st.markdown("---")
