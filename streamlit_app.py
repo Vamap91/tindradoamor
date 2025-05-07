@@ -113,14 +113,14 @@ def gerar_historia(tema, estilo, comprimento):
     
     return historia
 
-# Função para gerar imagem - VERSÃO OFFLINE GARANTIDA
+# Função aprimorada para gerar imagem
 def gerar_imagem(descricao, estilo):
     # Definir dimensões e cores
     largura, altura = 1024, 1024
     
     # Escolher cores de fundo baseadas no estilo
     cores_estilo = {
-        "Realista": (50, 50, 50),
+        "Realista": (20, 20, 30),  # Azul escuro para noites realistas
         "Cartoon": (80, 150, 200),
         "Pixel Art": (40, 40, 40),
         "Óleo": (120, 90, 60),
@@ -134,7 +134,6 @@ def gerar_imagem(descricao, estilo):
     # Criar uma imagem em branco
     img = Image.new('RGB', (largura, altura), cor_fundo)
     
-    # Adicionar texto descritivo
     import PIL.ImageDraw as ImageDraw
     import PIL.ImageFont as ImageFont
     
@@ -147,75 +146,123 @@ def gerar_imagem(descricao, estilo):
         
     draw = ImageDraw.Draw(img)
     
-    # Adicionar título
-    titulo = "Visualização Imaginária"
-    titulo_fonte = fonte
+    # Criar elementos visuais baseados na descrição
+    descricao_lower = descricao.lower()
     
-    # Centralizar título
-    titulo_largura = draw.textlength(titulo, font=titulo_fonte)
-    draw.text(((largura - titulo_largura) // 2, 100), titulo, font=titulo_fonte, fill=(255, 255, 255))
-    
-    # Quebrar a descrição em linhas
-    linhas = []
-    palavras = descricao.split()
-    linha_atual = ""
-    
-    for palavra in palavras:
-        if len(linha_atual + palavra) < 30:
-            linha_atual += palavra + " "
-        else:
-            linhas.append(linha_atual)
-            linha_atual = palavra + " "
-    
-    if linha_atual:
-        linhas.append(linha_atual)
+    # Verifica termos na descrição para criar elementos visuais específicos
+    if "carro" in descricao_lower and "rua" in descricao_lower:
+        # Criar uma rua
+        draw.rectangle([(0, altura//2), (largura, altura)], fill=(40, 40, 40))  # Asfalto
         
-    # Adicionar informações sobre estilo
-    linhas.append("")
-    linhas.append(f"Estilo: {estilo}")
-    
-    # Desenhar descrição centralizada
-    y_pos = altura // 3
-    for linha in linhas:
-        largura_texto = draw.textlength(linha, font=fonte)
-        x_pos = (largura - largura_texto) // 2
-        draw.text((x_pos, y_pos), linha, font=fonte, fill=(255, 255, 255))
-        y_pos += 60
+        # Linhas da rua
+        for i in range(0, largura, 100):
+            draw.rectangle([(i, altura//2 + 100), (i+50, altura//2 + 110)], fill=(200, 200, 200))
         
-    # Adicionar elementos visuais baseados no estilo
-    if estilo == "Cartoon":
-        # Adicionar um sol simples
-        draw.ellipse([(700, 200), (850, 350)], fill=(255, 220, 0))
-    elif estilo == "Pixel Art":
-        # Adicionar grade de pixels
-        pixel_size = 32
-        for x in range(0, largura, pixel_size):
-            for y in range(0, altura, pixel_size):
-                if (x + y) % (pixel_size * 2) == 0:
-                    draw.rectangle([(x, y), (x + pixel_size, y + pixel_size)], fill=(60, 60, 80))
-    elif estilo == "Futurista":
-        # Adicionar linhas de grade
-        for i in range(0, largura, 50):
-            draw.line([(i, 0), (i, altura)], fill=(0, 100, 200, 128), width=1)
-            draw.line([(0, i), (largura, i)], fill=(0, 150, 200, 128), width=1)
+        # Carro (representação simples)
+        carro_x = largura//3
+        carro_y = altura//2 + 50
+        
+        # Corpo do carro
+        draw.rectangle([(carro_x, carro_y), (carro_x+200, carro_y+80)], fill=(150, 0, 0))
+        
+        # Teto do carro
+        draw.rectangle([(carro_x+40, carro_y-40), (carro_x+160, carro_y)], fill=(100, 0, 0))
+        
+        # Rodas
+        draw.ellipse([(carro_x+30, carro_y+70), (carro_x+70, carro_y+110)], fill=(10, 10, 10))
+        draw.ellipse([(carro_x+130, carro_y+70), (carro_x+170, carro_y+110)], fill=(10, 10, 10))
+        
+        # Faróis (para rua escura)
+        draw.ellipse([(carro_x+180, carro_y+20), (carro_x+200, carro_y+40)], fill=(255, 255, 200))
+        
+        # Brilho dos faróis
+        for i in range(30):
+            alpha = 128-i*4 if 128-i*4 > 0 else 0
+            draw.ellipse([
+                (carro_x+200, carro_y+30-i), 
+                (carro_x+300+i*10, carro_y+30+i)
+            ], fill=(255, 255, 200, alpha), outline=None)
+        
+        # Céu noturno (se for noite/escuro)
+        if "escura" in descricao_lower or "noite" in descricao_lower:
+            # Adicionar estrelas
+            for _ in range(100):
+                star_x = random.randint(0, largura)
+                star_y = random.randint(0, altura//2)
+                star_size = random.randint(1, 3)
+                draw.ellipse([(star_x, star_y), (star_x+star_size, star_y+star_size)], 
+                             fill=(255, 255, 255))
+                
+            # Lua
+            lua_x = largura - 200
+            lua_y = 150
+            draw.ellipse([(lua_x, lua_y), (lua_x+100, lua_y+100)], fill=(230, 230, 230))
+    
+    elif "floresta" in descricao_lower:
+        # Criar um céu
+        for y in range(0, altura//2):
+            cor = (50, 100+y//5, 150+y//5)
+            draw.line([(0, y), (largura, y)], fill=cor)
+        
+        # Criar montanhas
+        for i in range(3):
+            base_x = largura * i // 3
+            pico_x = base_x + largura//6
+            base_y = altura//2
+            pico_y = base_y - random.randint(100, 200)
             
-    # Adicionar uma borda decorativa
-    for i in range(10):
-        draw.rectangle(
-            [(0 + i, 0 + i), (largura - 1 - i, altura - 1 - i)],
-            outline=(100 + i * 15, 100 + i * 5, 200 - i * 10)
-        )
+            pontos = [
+                (base_x, base_y),
+                (pico_x, pico_y),
+                (base_x + largura//3, base_y)
+            ]
+            draw.polygon(pontos, fill=(60+i*20, 80+i*10, 60+i*10))
         
-    # Texto informativo na parte inferior
-    info_text = "Imagem gerada localmente."
-    info_largura = draw.textlength(info_text, font=fonte)
+        # Criar solo
+        draw.rectangle([(0, altura//2), (largura, altura)], fill=(80, 60, 20))
+        
+        # Criar árvores
+        for _ in range(20):
+            tree_x = random.randint(0, largura)
+            tree_y = random.randint(altura//2, altura-100)
+            
+            # Tronco
+            draw.rectangle([(tree_x-10, tree_y), (tree_x+10, tree_y+100)], fill=(80, 50, 20))
+            
+            # Copa
+            draw.ellipse([(tree_x-50, tree_y-80), (tree_x+50, tree_y+20)], fill=(20, 120, 30))
+    
+    # Título pequeno e discreto
+    titulo = "Imagem gerada: " + descricao[:30] + "..."
+    titulo_fonte = ImageFont.truetype("Arial.ttf", 20) if hasattr(ImageFont, "truetype") else ImageFont.load_default()
+    
+    # Adicionar informações sobre estilo no canto
+    estilo_text = f"Estilo: {estilo}"
+    estilo_largura = draw.textlength(estilo_text, font=titulo_fonte) if hasattr(draw, "textlength") else 0
     draw.text(
-        ((largura - info_largura) // 2, altura - 100),
-        info_text,
-        font=fonte,
+        (20, altura - 50),
+        estilo_text,
+        font=titulo_fonte,
         fill=(200, 200, 200)
     )
-        
+    
+    # Adicionar borda com degrade baseado no estilo
+    if estilo == "Futurista":
+        # Borda tech
+        for i in range(10):
+            cor = (0, 100+i*10, 200-i*10)
+            draw.rectangle(
+                [(0+i, 0+i), (largura-1-i, altura-1-i)],
+                outline=cor
+            )
+    else:
+        # Borda normal
+        for i in range(5):
+            draw.rectangle(
+                [(0+i, 0+i), (largura-1-i, altura-1-i)],
+                outline=(100+i*20, 100+i*20, 100+i*20)
+            )
+    
     # Salvar em um arquivo temporário
     temp_img = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
     img.save(temp_img.name)
