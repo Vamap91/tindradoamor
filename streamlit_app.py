@@ -6,11 +6,12 @@ import io
 import base64
 import time
 from PIL import Image
+import numpy as np
 from moviepy.editor import ImageSequenceClip, AudioFileClip, concatenate_videoclips, TextClip, CompositeVideoClip
 import tempfile
 import google.generativeai as genai
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
 import random
 
 # Carregar variáveis de ambiente
@@ -54,13 +55,16 @@ st.markdown("<h1 class='main-header'>Gerador Automático de Conteúdo</h1>", uns
 def gerar_historia(tema, estilo, comprimento):
     """Gera uma história baseada nos parâmetros fornecidos usando API de IA"""
     try:
-        # Usando OpenAI para gerar a história
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+        # Configurar cliente OpenAI com a chave de API
+        # Não incluir o parâmetro 'proxies' que estava causando o erro
+        client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
         
         # Preparar o prompt conforme o comprimento desejado
         palavras = 200 if comprimento == "Curta" else 500 if comprimento == "Média" else 1000
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[
                 {
@@ -136,42 +140,63 @@ def criar_video(historia, imagem_path, titulo):
         # Definir diretório temporário para arquivos
         temp_dir = tempfile.mkdtemp()
         
-        # Carregar imagem
-        img = Image.open(imagem_path)
-        
-        # Criar clipe da imagem
-        duracoes = []
-        imagens = []
-        
-        # Dividir história em segmentos
+        # Dividir história em segmentos (limitar a 5 parágrafos para evitar vídeos muito longos)
         paragrafos = historia.split('\n\n')
-        for _ in paragrafos:
-            imagens.append(imagem_path)
-            duracoes.append(5)  # 5 segundos por parágrafo
+        if len(paragrafos) > 5:
+            paragrafos = paragrafos[:5]
+        
+        # Preparar slides (um para cada parágrafo)
+        slides = []
+        for i, paragrafo in enumerate(paragrafos):
+            # Usar a mesma imagem para cada slide, mas adicionar o texto do parágrafo
+            img = Image.open(imagem_path)
             
-        # Gerar narração de texto para áudio (simulado com um arquivo de áudio silencioso)
-        audio_temp = os.path.join(temp_dir, "temp_audio.mp3")
-        with open(audio_temp, 'wb') as f:
-            # Em um sistema real, aqui seria usado TTS (Text-to-Speech)
-            # Por simplicidade, estamos criando um arquivo de áudio em branco
-            f.write(b'')
+            # Criar slide com texto sobreposto à imagem usando MoviePy
+            img_clip = ImageSequenceClip([np.array(img)], durations=[5])
+            
+            # Limitar o tamanho do texto para caber na tela
+            texto_curto = paragrafo[:150] + "..." if len(paragrafo) > 150 else paragrafo
+            
+            # Criar clipe de texto
+            txt_clip = TextClip(
+                texto_curto, 
+                fontsize=30, 
+                color='white',
+                bg_color='rgba(0,0,0,0.5)',
+                method='caption',
+                size=(img.width, None),
+                font='Arial'
+            ).set_position(('center', 'bottom')).set_duration(5)
+            
+            # Combinar imagem e texto
+            slide = CompositeVideoClip([img_clip, txt_clip])
+            slides.append(slide)
         
-        # Criar clipe de áudio (em uma implementação real, usaria TTS)
-        # audio_clip = AudioFileClip(audio_temp)
+        # Criar título para o início do vídeo
+        title_clip = TextClip(
+            titulo, 
+            fontsize=70, 
+            color='white', 
+            bg_color='rgba(0,0,0,0.7)',
+            size=(img.width, None), 
+            method='caption',
+            font='Arial-Bold'
+        ).set_position('center').set_duration(3)
         
-        # Criar clipe de imagem
-        clip = ImageSequenceClip(imagens, durations=duracoes)
+        # Colocar o título sobre a primeira imagem
+        first_img = Image.open(imagem_path)
+        first_img_clip = ImageSequenceClip([np.array(first_img)], durations=[3])
+        intro_clip = CompositeVideoClip([first_img_clip, title_clip])
         
-        # Adicionar título
-        txt_clip = TextClip(titulo, fontsize=70, color='white', bg_color='rgba(0,0,0,0.5)',
-                           size=clip.size, method='caption').set_duration(5)
-        video = CompositeVideoClip([clip, txt_clip.set_start(0)])
+        # Juntar todos os clipes
+        final_clips = [intro_clip] + slides
+        video = concatenate_videoclips(final_clips)
         
         # Definir caminho para o vídeo final
         output_path = os.path.join(temp_dir, "video_final.mp4")
         
-        # Exportar vídeo
-        video.write_videofile(output_path, fps=24, codec='libx264', audio_codec='aac')
+        # Exportar vídeo (sem áudio para simplificar)
+        video.write_videofile(output_path, fps=24, codec='libx264', audio=False)
         
         return output_path
     except Exception as e:
@@ -230,12 +255,25 @@ if gerar_button:
                     st.image(imagem, caption=descricao_imagem, use_column_width=True)
                     
                     with st.spinner('Criando vídeo...'):
-                        video_path = criar_video(historia, imagem_path, titulo_video)
+                        try:
+                            # Tenta criar o vídeo com a função principal
+                            video_path = criar_video(historia, imagem_path, titulo_video)
+                        except Exception as e:
+                            st.warning(f"Falha no método principal de criação de vídeo: {str(e)}. Tentando método alternativo...")
+                            # Se falhar, tenta com a função simplificada
+                            video_path = criar_video_simples(historia, imagem_path, titulo_video)
                         
                         if video_path:
-                            st.success("Vídeo criado com sucesso!")
-                            st.markdown("### Vídeo Gerado")
-                            st.video(video_path)
+                            # Verifica se o arquivo gerado é um vídeo ou texto
+                            if video_path.endswith('.mp4'):
+                                st.success("Vídeo criado com sucesso!")
+                                st.markdown("### Vídeo Gerado")
+                                st.video(video_path)
+                            else:
+                                st.warning("Não foi possível criar um vídeo, mas a história foi salva como texto.")
+                                with open(video_path, 'r', encoding='utf-8') as f:
+                                    conteudo = f.read()
+                                st.download_button("Baixar História", conteudo, "historia.txt")
                             
                             with st.spinner('Salvando no GitHub...'):
                                 if salvar_no_github(historia, imagem_path, video_path, titulo_video):
