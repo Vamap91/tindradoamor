@@ -1,0 +1,60 @@
+name: Deploy Streamlit App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+    - name: Create env file
+      run: |
+        echo "${{ secrets.ENV_FILE }}" > .env
+      
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create env file
+      run: |
+        echo "${{ secrets.ENV_FILE }}" > .env
+        
+    - name: Deploy to Streamlit Cloud
+      uses: streamlit/streamlit-deploy-action@v1
+      with:
+        app-name: gerador-automatico-conteudo
+        streamlit-credentials-toml: ${{ secrets.STREAMLIT_CREDENTIALS_TOML }}
