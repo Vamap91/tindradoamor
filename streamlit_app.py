@@ -370,8 +370,7 @@ def gerar_imagem_alternativa(descricao, estilo):
         return temp_img.name, img
     except Exception as e:
         st.error(f"Erro ao gerar imagem alternativa: {str(e)}")
-        return None, Noneimg = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-        img.save(temp_img.name)
+        return None, None
         
         return temp_img.name, img
     except Exception as e:
