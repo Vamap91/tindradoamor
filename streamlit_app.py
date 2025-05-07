@@ -64,15 +64,15 @@ def gerar_historia(tema, estilo, comprimento):
         api_key = get_api_key("OPENAI_API_KEY")
         
         if api_key:
-            # Inicialização simples do cliente OpenAI sem argumentos extras
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
+            # Usar método antigo e compatível para evitar erros de proxies
+            import openai
+            openai.api_key = api_key
             
             # Preparar o prompt conforme o comprimento desejado
             palavras = 200 if comprimento == "Curta" else 500 if comprimento == "Média" else 1000
             
-            # Fazer a requisição para a API
-            response = client.chat.completions.create(
+            # Fazer a requisição para a API usando o método antigo
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {
@@ -87,7 +87,7 @@ def gerar_historia(tema, estilo, comprimento):
                 max_tokens=1500
             )
             
-            # Extrair e retornar o conteúdo da resposta
+            # Extrair e retornar o conteúdo da resposta (método antigo)
             return response.choices[0].message.content
         else:
             # Se não tiver a chave, usa método alternativo
@@ -315,48 +315,40 @@ def gerar_imagem_offline(descricao, estilo):
     
     return temp_img.name, img
 
-# Função simplificada para criar vídeo sem depender do ImageMagick
+# Função para criar um vídeo muito simples (sem ImageMagick)
 def criar_video(historia, imagem_path, titulo):
     try:
-        # Definir diretório temporário para arquivos
+        # Criar um diretório temporário
         temp_dir = tempfile.mkdtemp()
         
-        # Carregar imagem
+        # Carregar a imagem
         img = Image.open(imagem_path)
         img_array = np.array(img)
         
-        # Criar um clipe básico apenas com a imagem
-        img_clip = ImageSequenceClip([img_array], durations=[10])
+        # Criar um clipe simples com a imagem como fundo
+        clip = ImageSequenceClip([img_array], durations=[10])
         
-        # Criar texto para o título (usando método simples)
-        txt_clip = TextClip(
-            txt=titulo,
-            size=(img.width - 100, None),
-            color='white',
-            bg_color='rgba(0,0,0,0.5)',
-            fontsize=60,
-            method='label'  # Método mais simples que não requer ImageMagick
-        ).set_position('center').set_duration(10)
+        # Criar um texto simples para o vídeo
+        # O parâmetro method='label' é crucial para evitar dependência do ImageMagick
+        texto = TextClip(titulo, fontsize=70, font='Arial', color='white', 
+                        bg_color='black', method='label', size=(img.width - 100, None))
+        texto = texto.set_position('center').set_duration(10)
         
-        # Combinar imagem e texto
-        video = CompositeVideoClip([img_clip, txt_clip])
+        # Combinar a imagem e o texto
+        video = CompositeVideoClip([clip, texto])
         
-        # Definir caminho para o vídeo final
+        # Salvar o vídeo
         output_path = os.path.join(temp_dir, "video_final.mp4")
-        
-        # Exportar vídeo sem áudio
         video.write_videofile(output_path, fps=24, codec='libx264', audio=False)
         
         return output_path
     except Exception as e:
         st.error(f"Erro ao criar vídeo: {str(e)}")
-        
-        # Se não conseguir criar o vídeo, pelo menos salvar a história como texto
+        # Se falhar, retornar pelo menos a história como texto
         try:
             output_path = os.path.join(temp_dir, "historia.txt")
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(f"# {titulo}\n\n{historia}")
-            st.warning("Não foi possível criar o vídeo. A história foi salva como texto.")
             return output_path
         except:
             return None
