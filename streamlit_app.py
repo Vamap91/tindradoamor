@@ -11,7 +11,8 @@ from moviepy.editor import ImageSequenceClip, AudioFileClip, concatenate_videocl
 import tempfile
 import google.generativeai as genai
 from dotenv import load_dotenv
-from openai import OpenAI
+# Importar a biblioteca OpenAI corretamente
+from openai import OpenAI  
 import random
 
 # Carregar variáveis de ambiente
@@ -55,15 +56,19 @@ st.markdown("<h1 class='main-header'>Gerador Automático de Conteúdo</h1>", uns
 def gerar_historia(tema, estilo, comprimento):
     """Gera uma história baseada nos parâmetros fornecidos usando API de IA"""
     try:
-        # Configurar cliente OpenAI com a chave de API
-        # Não incluir o parâmetro 'proxies' que estava causando o erro
-        client = openai.OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # Obter a chave de API do ambiente
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            st.error("Chave de API OpenAI não encontrada. Verifique o arquivo .env")
+            return None
+            
+        # Inicializar o cliente OpenAI com a chave
+        client = OpenAI(api_key=api_key)
         
         # Preparar o prompt conforme o comprimento desejado
         palavras = 200 if comprimento == "Curta" else 500 if comprimento == "Média" else 1000
         
+        # Fazer a requisição para a API
         response = client.chat.completions.create(
             model="gpt-4-turbo",
             messages=[
@@ -78,9 +83,14 @@ def gerar_historia(tema, estilo, comprimento):
             ],
             max_tokens=1500
         )
+        
+        # Extrair e retornar o conteúdo da resposta
         return response.choices[0].message.content
     except Exception as e:
+        # Registrar a exceção completa para depuração
+        import traceback
         st.error(f"Erro ao gerar história: {str(e)}")
+        st.error(traceback.format_exc())
         return None
 
 def gerar_imagem(descricao, estilo):
@@ -203,8 +213,75 @@ def criar_video(historia, imagem_path, titulo):
         st.error(f"Erro ao criar vídeo: {str(e)}")
         return None
 
-def salvar_no_github(historia, imagem_path, video_path, titulo):
-    """Salva os arquivos gerados em um repositório GitHub"""
+def gerar_imagem_alternativa(descricao, estilo):
+    """Método alternativo para geração de imagens usando uma abordagem local"""
+    try:
+        # Em uma implementação real, usaríamos outra API como DALL-E ou Midjourney
+        # Para este exemplo, vamos criar uma imagem de texto simples com Pillow
+        
+        # Definir dimensões e cores
+        largura, altura = 1024, 1024
+        cor_fundo = (30, 30, 30)
+        cor_texto = (255, 255, 255)
+        
+        # Criar uma imagem em branco
+        img = Image.new('RGB', (largura, altura), cor_fundo)
+        
+        # Adicionar texto descritivo
+        import PIL.ImageDraw as ImageDraw
+        import PIL.ImageFont as ImageFont
+        
+        try:
+            # Tentar carregar uma fonte
+            fonte = ImageFont.truetype("Arial.ttf", 40)
+        except:
+            # Se não encontrar, usar fonte padrão
+            fonte = ImageFont.load_default()
+            
+        draw = ImageDraw.Draw(img)
+        
+        # Quebrar o texto em linhas para exibição
+        linhas = []
+        palavras = descricao.split()
+        linha_atual = ""
+        
+        for palavra in palavras:
+            if len(linha_atual + palavra) < 30:
+                linha_atual += palavra + " "
+            else:
+                linhas.append(linha_atual)
+                linha_atual = palavra + " "
+        
+        if linha_atual:
+            linhas.append(linha_atual)
+            
+        # Adicionar informações sobre estilo
+        linhas.append("")
+        linhas.append(f"Estilo: {estilo}")
+        
+        # Desenhar texto centralizado
+        y_pos = altura // 3
+        for linha in linhas:
+            largura_texto = draw.textlength(linha, font=fonte)
+            x_pos = (largura - largura_texto) // 2
+            draw.text((x_pos, y_pos), linha, font=fonte, fill=cor_texto)
+            y_pos += 60
+            
+        # Adicionar uma borda decorativa
+        for i in range(10):
+            draw.rectangle(
+                [(0 + i, 0 + i), (largura - 1 - i, altura - 1 - i)],
+                outline=(100 + i * 15, 100 + i * 5, 200 - i * 10)
+            )
+            
+        # Salvar em um arquivo temporário
+        temp_img = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+        img.save(temp_img.name)
+        
+        return temp_img.name, img
+    except Exception as e:
+        st.error(f"Erro ao gerar imagem alternativa: {str(e)}")
+        return None, None
     # Em uma implementação real, usaria a API do GitHub
     # Por agora, retornamos um sucesso simulado
     return True
@@ -239,7 +316,13 @@ with st.form("gerador_form"):
 # Processamento quando o botão é clicado
 if gerar_button:
     with st.spinner('Gerando história...'):
+        # Primeiro tenta com o método principal (OpenAI)
         historia = gerar_historia(tema, estilo_historia, comprimento)
+        
+        # Se falhar, tenta com o método alternativo (Gemini)
+        if not historia:
+            st.warning("Método principal de geração de história falhou. Tentando método alternativo...")
+            historia = gerar_historia_alternativa(tema, estilo_historia, comprimento)
         
         if historia:
             st.success("História gerada com sucesso!")
