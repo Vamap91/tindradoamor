@@ -38,8 +38,7 @@ def get_api_key(key_name):
 def check_api_keys():
     keys = {
         "OPENAI_API_KEY": get_api_key("OPENAI_API_KEY"),
-        "STABILITY_API_KEY": get_api_key("STABILITY_API_KEY"),
-        "GEMINI_API_KEY": get_api_key("GEMINI_API_KEY")
+        "STABILITY_API_KEY": get_api_key("STABILITY_API_KEY")
     }
     
     # Retorna um dicionário com as chaves disponíveis
