@@ -25,6 +25,26 @@ st.set_page_config(
     layout="wide"
 )
 
+# Função para obter chaves de API (verifica primeiro em secrets do Streamlit, depois em .env)
+def get_api_key(key_name):
+    # Tentar obter do Streamlit secrets
+    try:
+        return st.secrets[key_name]
+    except:
+        # Se não estiver disponível, tenta do arquivo .env
+        return os.getenv(key_name)
+        
+# Verificar se as chaves necessárias estão disponíveis
+def check_api_keys():
+    keys = {
+        "OPENAI_API_KEY": get_api_key("OPENAI_API_KEY"),
+        "STABILITY_API_KEY": get_api_key("STABILITY_API_KEY"),
+        "GEMINI_API_KEY": get_api_key("GEMINI_API_KEY")
+    }
+    
+    # Retorna um dicionário com as chaves disponíveis
+    return {k: (v is not None) for k, v in keys.items()}
+
 # Estilos CSS
 st.markdown("""
 <style>
@@ -54,152 +74,102 @@ st.markdown("<h1 class='main-header'>Gerador Automático de Conteúdo</h1>", uns
 
 # Funções de geração de conteúdo
 def gerar_historia(tema, estilo, comprimento):
-    """Gera uma história baseada nos parâmetros fornecidos"""
+    """Gera uma história baseada nos parâmetros fornecidos usando API de IA"""
     try:
-        # Método simples sem dependência de API externa
-        # Isso é uma alternativa para quando as APIs não estão disponíveis
+        # Verificar se temos a chave da OpenAI
+        api_key = get_api_key("OPENAI_API_KEY")
         
-        st.warning("Utilizando gerador de histórias offline (as APIs não estão configuradas corretamente)")
+        if not api_key:
+            st.warning("Chave da OpenAI não encontrada. Usando método alternativo.")
+            return gerar_historia_alternativa(tema, estilo, comprimento)
         
-        # Determinar comprimento
-        tamanho = "curta" if comprimento == "Curta" else "média" if comprimento == "Média" else "longa"
+        # Inicializar cliente OpenAI
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
         
-        # Gerar uma história básica baseada no tema e estilo
-        historia = f"""
-        # {tema.upper()} - Uma história {estilo}
+        # Preparar o prompt conforme o comprimento desejado
+        palavras = 200 if comprimento == "Curta" else 500 if comprimento == "Média" else 1000
         
-        Era uma vez, em um mundo não muito distante do nosso, havia um lugar especial onde a magia do {tema} acontecia todos os dias. 
+        # Fazer a requisição para a API
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Usando modelo mais recente disponível
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"Você é um escritor especializado em criar histórias no estilo {estilo}."
+                },
+                {
+                    "role": "user", 
+                    "content": f"Crie uma história {comprimento.lower()} (aproximadamente {palavras} palavras) sobre '{tema}'. A história deve ser envolvente, criativa e adequada para ser transformada em um vídeo curto."
+                }
+            ],
+            max_tokens=1500
+        )
         
-        Os personagens desta história viviam aventuras extraordinárias no estilo {estilo}, enfrentando desafios e descobrindo segredos antigos.
-        
-        {"Brevemente, eles encontrariam o desfecho desta jornada." if tamanho == "curta" else 
-         "A jornada continuava com reviravoltas inesperadas e personagens memoráveis." if tamanho == "média" else
-         "Esta saga épica se desenrolaria por muitos capítulos, com personagens complexos e tramas entrelaçadas."}
-        
-        O mais incrível de tudo é que, ao final da jornada, todos aprenderam lições valiosas sobre amizade, coragem e perseverança.
-        
-        Para personalizar esta história, configure corretamente as chaves de API em um arquivo .env!
-        """
-        
-        return historia
+        # Extrair e retornar o conteúdo da resposta
+        return response.choices[0].message.content
     except Exception as e:
-        st.error(f"Erro ao gerar história: {str(e)}")
-        return None
+        import traceback
+        st.error(f"Erro ao gerar história via OpenAI: {str(e)}")
+        st.error(traceback.format_exc())
+        
+        # Em caso de erro, usar o método alternativo
+        st.warning("Tentando método alternativo de geração de história...")
+        return gerar_historia_alternativa(tema, estilo, comprimento)
 
 def gerar_imagem(descricao, estilo):
-    """Gera uma imagem baseada na descrição e estilo"""
+    """Gera uma imagem baseada na descrição e estilo usando API de IA"""
     try:
-        st.warning("Utilizando gerador de imagens offline (as APIs não estão configuradas corretamente)")
+        # Verificar se temos a chave da Stability AI
+        api_key = get_api_key("STABILITY_API_KEY")
         
-        # Definir dimensões e cores
-        largura, altura = 1024, 1024
+        if not api_key:
+            st.warning("Chave da Stability AI não encontrada. Usando método alternativo.")
+            return gerar_imagem_alternativa(descricao, estilo)
         
-        # Escolher cores de fundo baseadas no estilo
-        cores_estilo = {
-            "Realista": (50, 50, 50),
-            "Cartoon": (80, 150, 200),
-            "Pixel Art": (40, 40, 40),
-            "Óleo": (120, 90, 60),
-            "Aquarela": (230, 220, 210),
-            "Minimalista": (250, 250, 250),
-            "Futurista": (20, 30, 80)
-        }
+        # Criar prompt para geração de imagem
+        prompt = f"Gere uma imagem que represente: {descricao}. Estilo visual: {estilo}."
         
-        cor_fundo = cores_estilo.get(estilo, (30, 30, 30))
+        # Configurar API Stability AI
+        api_host = "https://api.stability.ai"
+        engine_id = "stable-diffusion-xl-1024-v1-0"
         
-        # Criar uma imagem em branco
-        img = Image.new('RGB', (largura, altura), cor_fundo)
-        
-        # Adicionar texto descritivo
-        import PIL.ImageDraw as ImageDraw
-        import PIL.ImageFont as ImageFont
-        
-        try:
-            # Tentar carregar uma fonte
-            fonte = ImageFont.truetype("Arial.ttf", 40)
-        except:
-            # Se não encontrar, usar fonte padrão
-            fonte = ImageFont.load_default()
-            
-        draw = ImageDraw.Draw(img)
-        
-        # Adicionar título
-        titulo = "Visualização Imaginária"
-        titulo_fonte = fonte
-        
-        # Centralizar título
-        titulo_largura = draw.textlength(titulo, font=titulo_fonte)
-        draw.text(((largura - titulo_largura) // 2, 100), titulo, font=titulo_fonte, fill=(255, 255, 255))
-        
-        # Quebrar a descrição em linhas
-        linhas = []
-        palavras = descricao.split()
-        linha_atual = ""
-        
-        for palavra in palavras:
-            if len(linha_atual + palavra) < 30:
-                linha_atual += palavra + " "
-            else:
-                linhas.append(linha_atual)
-                linha_atual = palavra + " "
-        
-        if linha_atual:
-            linhas.append(linha_atual)
-            
-        # Adicionar informações sobre estilo
-        linhas.append("")
-        linhas.append(f"Estilo: {estilo}")
-        
-        # Desenhar descrição centralizada
-        y_pos = altura // 3
-        for linha in linhas:
-            largura_texto = draw.textlength(linha, font=fonte)
-            x_pos = (largura - largura_texto) // 2
-            draw.text((x_pos, y_pos), linha, font=fonte, fill=(255, 255, 255))
-            y_pos += 60
-            
-        # Adicionar elementos visuais baseados no estilo
-        if estilo == "Cartoon":
-            # Adicionar um sol simples
-            draw.ellipse([(700, 200), (850, 350)], fill=(255, 220, 0))
-        elif estilo == "Pixel Art":
-            # Adicionar grade de pixels
-            pixel_size = 32
-            for x in range(0, largura, pixel_size):
-                for y in range(0, altura, pixel_size):
-                    if (x + y) % (pixel_size * 2) == 0:
-                        draw.rectangle([(x, y), (x + pixel_size, y + pixel_size)], fill=(60, 60, 80))
-        elif estilo == "Futurista":
-            # Adicionar linhas de grade
-            for i in range(0, largura, 50):
-                draw.line([(i, 0), (i, altura)], fill=(0, 100, 200, 128), width=1)
-                draw.line([(0, i), (largura, i)], fill=(0, 150, 200, 128), width=1)
-                
-        # Adicionar uma borda decorativa
-        for i in range(10):
-            draw.rectangle(
-                [(0 + i, 0 + i), (largura - 1 - i, altura - 1 - i)],
-                outline=(100 + i * 15, 100 + i * 5, 200 - i * 10)
-            )
-            
-        # Texto informativo na parte inferior
-        info_text = "Imagem gerada localmente. Configure APIs para imagens reais."
-        info_largura = draw.textlength(info_text, font=fonte)
-        draw.text(
-            ((largura - info_largura) // 2, altura - 100),
-            info_text,
-            font=fonte,
-            fill=(200, 200, 200)
+        response = requests.post(
+            f"{api_host}/v1/generation/{engine_id}/text-to-image",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            },
+            json={
+                "text_prompts": [{"text": prompt}],
+                "cfg_scale": 7,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+                "steps": 30,
+            },
         )
+        
+        if response.status_code != 200:
+            st.error(f"API de geração de imagem retornou {response.status_code}: {response.text}")
+            return gerar_imagem_alternativa(descricao, estilo)
             
+        data = response.json()
+        image_base64 = data["artifacts"][0]["base64"]
+        image = Image.open(io.BytesIO(base64.b64decode(image_base64)))
+        
         # Salvar em um arquivo temporário
         temp_img = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-        img.save(temp_img.name)
+        image.save(temp_img.name)
         
-        return temp_img.name, img
+        return temp_img.name, image
     except Exception as e:
-        st.error(f"Erro ao gerar imagem: {str(e)}")
-        return None, None
+        st.error(f"Erro ao gerar imagem via Stability AI: {str(e)}")
+        
+        # Em caso de erro, usar o método alternativo
+        st.warning("Tentando método alternativo de geração de imagem...")
+        return gerar_imagem_alternativa(descricao, estilo)
 
 def criar_video(historia, imagem_path, titulo):
     """Cria um vídeo a partir da história e imagem fornecidas"""
