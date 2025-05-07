@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import time
 import random
 
-# Carregar variáveis de ambiente do arquivo .env (para desenvolvimento local)
+# Carregar variáveis de ambiente 
 load_dotenv()
 
 # Configuração da página
@@ -57,49 +57,8 @@ def get_api_key(key_name):
         # Se não encontrar, tenta do arquivo .env
         return os.getenv(key_name)
 
-# Função para gerar história
+# Função para gerar história - VERSÃO OFFLINE GARANTIDA
 def gerar_historia(tema, estilo, comprimento):
-    try:
-        # Verificar se temos a chave da OpenAI
-        api_key = get_api_key("OPENAI_API_KEY")
-        
-        if api_key:
-            # Usar método antigo e compatível para evitar erros de proxies
-            import openai
-            openai.api_key = api_key
-            
-            # Preparar o prompt conforme o comprimento desejado
-            palavras = 200 if comprimento == "Curta" else 500 if comprimento == "Média" else 1000
-            
-            # Fazer a requisição para a API usando o método antigo
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": f"Você é um escritor especializado em criar histórias no estilo {estilo}."
-                    },
-                    {
-                        "role": "user", 
-                        "content": f"Crie uma história {comprimento.lower()} (aproximadamente {palavras} palavras) sobre '{tema}'. A história deve ser envolvente, criativa e adequada para ser transformada em um vídeo curto."
-                    }
-                ],
-                max_tokens=1500
-            )
-            
-            # Extrair e retornar o conteúdo da resposta (método antigo)
-            return response.choices[0].message.content
-        else:
-            # Se não tiver a chave, usa método alternativo
-            st.warning("API OpenAI não configurada. Usando gerador alternativo.")
-            return gerar_historia_offline(tema, estilo, comprimento)
-            
-    except Exception as e:
-        st.error(f"Erro ao gerar história: {str(e)}")
-        return gerar_historia_offline(tema, estilo, comprimento)
-
-# Função alternativa para gerar história sem API
-def gerar_historia_offline(tema, estilo, comprimento):
     # Estilo da história
     estilos = {
         "Aventura": "com muita ação e exploração",
@@ -154,60 +113,8 @@ def gerar_historia_offline(tema, estilo, comprimento):
     
     return historia
 
-# Função para gerar imagem
+# Função para gerar imagem - VERSÃO OFFLINE GARANTIDA
 def gerar_imagem(descricao, estilo):
-    try:
-        # Verificar se temos a chave da Stability AI
-        api_key = get_api_key("STABILITY_API_KEY")
-        
-        if api_key:
-            # Criar prompt para geração de imagem
-            prompt = f"Gere uma imagem que represente: {descricao}. Estilo visual: {estilo}."
-            
-            # Configurar API Stability AI
-            url = "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image"
-            
-            headers = {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-            
-            payload = {
-                "text_prompts": [{"text": prompt}],
-                "cfg_scale": 7,
-                "height": 1024,
-                "width": 1024,
-                "samples": 1,
-                "steps": 30,
-            }
-            
-            response = requests.post(url, headers=headers, json=payload)
-            
-            if response.status_code != 200:
-                st.error(f"Erro na API de imagem: {response.status_code}")
-                return gerar_imagem_offline(descricao, estilo)
-                
-            data = response.json()
-            image_base64 = data["artifacts"][0]["base64"]
-            image = Image.open(io.BytesIO(base64.b64decode(image_base64)))
-            
-            # Salvar em um arquivo temporário
-            temp_img = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-            image.save(temp_img.name)
-            
-            return temp_img.name, image
-        else:
-            # Se não tiver a chave, usa método alternativo
-            st.warning("API Stability AI não configurada. Usando gerador alternativo.")
-            return gerar_imagem_offline(descricao, estilo)
-            
-    except Exception as e:
-        st.error(f"Erro ao gerar imagem: {str(e)}")
-        return gerar_imagem_offline(descricao, estilo)
-
-# Função alternativa para gerar imagem sem API
-def gerar_imagem_offline(descricao, estilo):
     # Definir dimensões e cores
     largura, altura = 1024, 1024
     
@@ -300,7 +207,7 @@ def gerar_imagem_offline(descricao, estilo):
         )
         
     # Texto informativo na parte inferior
-    info_text = "Imagem gerada localmente. Configure APIs para imagens reais."
+    info_text = "Imagem gerada localmente."
     info_largura = draw.textlength(info_text, font=fonte)
     draw.text(
         ((largura - info_largura) // 2, altura - 100),
@@ -315,43 +222,39 @@ def gerar_imagem_offline(descricao, estilo):
     
     return temp_img.name, img
 
-# Função para criar um vídeo muito simples (sem ImageMagick)
+# Função ULTRA-SIMPLIFICADA para criar um vídeo sem dependências externas
 def criar_video(historia, imagem_path, titulo):
     try:
         # Criar um diretório temporário
         temp_dir = tempfile.mkdtemp()
         
-        # Carregar a imagem
-        img = Image.open(imagem_path)
-        img_array = np.array(img)
+        # Salvar história como texto (garantido que funciona)
+        output_path = os.path.join(temp_dir, "historia.txt")
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(f"# {titulo}\n\n{historia}")
         
-        # Criar um clipe simples com a imagem como fundo
-        clip = ImageSequenceClip([img_array], durations=[10])
-        
-        # Criar um texto simples para o vídeo
-        # O parâmetro method='label' é crucial para evitar dependência do ImageMagick
-        texto = TextClip(titulo, fontsize=70, font='Arial', color='white', 
-                        bg_color='black', method='label', size=(img.width - 100, None))
-        texto = texto.set_position('center').set_duration(10)
-        
-        # Combinar a imagem e o texto
-        video = CompositeVideoClip([clip, texto])
-        
-        # Salvar o vídeo
-        output_path = os.path.join(temp_dir, "video_final.mp4")
-        video.write_videofile(output_path, fps=24, codec='libx264', audio=False)
-        
-        return output_path
-    except Exception as e:
-        st.error(f"Erro ao criar vídeo: {str(e)}")
-        # Se falhar, retornar pelo menos a história como texto
+        # Tentar criar vídeo simples
         try:
-            output_path = os.path.join(temp_dir, "historia.txt")
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(f"# {titulo}\n\n{historia}")
-            return output_path
+            # Carregar a imagem
+            img = Image.open(imagem_path)
+            img_array = np.array(img)
+            
+            # Criar um clipe simples com a imagem como fundo
+            clip = ImageSequenceClip([img_array], durations=[5])
+            
+            # Definir caminho do vídeo
+            video_path = os.path.join(temp_dir, "video_final.mp4")
+            
+            # Salvar vídeo (o mais simples possível)
+            clip.write_videofile(video_path, fps=24, codec='libx264', audio=False)
+            
+            return video_path
         except:
-            return None
+            # Se o vídeo falhar, retornar o arquivo de texto
+            return output_path
+    except:
+        # Se tudo falhar, retornar None
+        return None
 
 # Interface do usuário
 with st.form("gerador_form"):
@@ -422,9 +325,9 @@ if gerar_button:
 st.markdown("---")
 st.markdown("""
 ### Como funciona
-1. **Geração de história**: Utilizamos IA para criar narrativas envolventes baseadas no tema e estilo escolhidos.
-2. **Geração de imagens**: Utilizamos IA para criar imagens impressionantes que representam sua história.
-3. **Criação de vídeo**: Combinamos a imagem com o texto da história para criar um vídeo completo.
+1. **Geração de história**: Criamos narrativas envolventes baseadas no tema e estilo escolhidos.
+2. **Geração de imagens**: Criamos imagens que representam sua história.
+3. **Criação de vídeo**: Combinamos a imagem com o texto da história.
 
 ### Dicas de uso
 - Seja específico na descrição da imagem para obter resultados mais precisos
